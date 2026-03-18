@@ -12,6 +12,8 @@ describe("makeTypedEnv", () => {
     const getEnv = makeTypedEnv(schema);
     const env = getEnv({ NODE_ENV: "production", PORT: 3000 });
 
+    type _Env = Expect<Equal<typeof env, { NODE_ENV: "production"; PORT: number }>>;
+
     expect(env).toEqual({ NODE_ENV: "production", PORT: 3000 });
   });
 
@@ -31,6 +33,8 @@ describe("makeTypedEnv", () => {
 
     const getEnv = makeTypedEnv(schema, toLowerCase);
     const env = getEnv({ DATABASE_URL: "postgres://localhost", API_KEY: "secret" });
+
+    type _Env = Expect<Equal<typeof env, Record<string, unknown>>>;
 
     expect(env).toEqual({ database_url: "postgres://localhost", api_key: "secret" });
   });
@@ -59,5 +63,62 @@ describe("makeTypedEnv", () => {
 
     expect(() => getEnv({})).toThrow(TypeError);
     expect(() => getEnv({})).toThrow("Async schemas are not supported");
+  });
+});
+
+describe("type tests", () => {
+  test("without transform returns the schema output type", () => {
+    const schema = z.object({
+      DATABASE_URL: z.string(),
+      PORT: z.number(),
+      DEBUG: z.boolean(),
+    });
+
+    const getEnv = makeTypedEnv(schema);
+
+    type _GetEnv = Expect<
+      Equal<
+        typeof getEnv,
+        (args: Record<string, unknown>) => { DATABASE_URL: string; PORT: number; DEBUG: boolean }
+      >
+    >;
+  });
+
+  test("with transform returns the transform output type", () => {
+    const schema = z.object({
+      DATABASE_URL: z.string(),
+      PORT: z.number(),
+    });
+
+    const transform = (obj: { DATABASE_URL: string; PORT: number }) => ({
+      db: obj.DATABASE_URL,
+      port: obj.PORT,
+    });
+
+    const getEnv = makeTypedEnv(schema, transform);
+
+    type _GetEnv = Expect<
+      Equal<typeof getEnv, (args: Record<string, unknown>) => { db: string; port: number }>
+    >;
+  });
+
+  test("infers literal and union types from schema", () => {
+    const schema = z.object({
+      NODE_ENV: z.enum(["development", "production", "test"]),
+      OPTIONAL: z.optional(z.string()),
+    });
+
+    const getEnv = makeTypedEnv(schema);
+    type Env = ReturnType<typeof getEnv>;
+
+    type _NodeEnv = Expect<Equal<Env["NODE_ENV"], "development" | "production" | "test">>;
+    type _Optional = Expect<Equal<Env["OPTIONAL"], string | undefined>>;
+  });
+
+  test("accepts Record<string, unknown> as args", () => {
+    const schema = z.object({ FOO: z.string() });
+    const getEnv = makeTypedEnv(schema);
+
+    type _Args = Expect<Equal<Parameters<typeof getEnv>, [args: Record<string, unknown>]>>;
   });
 });
