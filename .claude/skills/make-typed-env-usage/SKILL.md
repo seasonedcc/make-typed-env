@@ -95,18 +95,12 @@ const getEnv = makeTypedEnv(schema, (parsed) => ({
 
 ### Stripping prefixes
 
-Combine transforms to remove prefixes like `VITE_` before camelCasing:
+Use `replaceKeys` from `string-ts` to strip prefixes like `VITE_` before camelCasing:
 
 ```ts
-function stripPrefixAndCamelCase<T extends Record<string, unknown>>(obj: T) {
-  const stripped: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    stripped[key.replace(/^VITE_/, "")] = value;
-  }
-  return camelKeys(stripped as T);
-}
+import { camelKeys, replaceKeys } from "string-ts";
 
-const getEnv = makeTypedEnv(schema, stripPrefixAndCamelCase);
+const getEnv = makeTypedEnv(schema, (parsed) => camelKeys(replaceKeys(parsed, "VITE_", "")));
 // VITE_GOOGLE_MAPS_API_KEY → googleMapsApiKey
 ```
 
