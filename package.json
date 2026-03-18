@@ -1,16 +1,27 @@
 {
   "name": "make-typed-env",
-  "version": "0.0.0",
-  "description": "A starter for creating a TypeScript package.",
-  "homepage": "https://github.com/author/library#readme",
+  "version": "0.0.1",
+  "description": "Type-safe environment variables for TypeScript. Schema-agnostic via Standard Schema, with optional key transformation.",
+  "keywords": [
+    "arktype",
+    "env",
+    "environment",
+    "standard-schema",
+    "string-ts",
+    "type-safe",
+    "typed",
+    "valibot",
+    "zod"
+  ],
+  "homepage": "https://github.com/seasonedcc/make-typed-env#readme",
   "bugs": {
-    "url": "https://github.com/author/library/issues"
+    "url": "https://github.com/seasonedcc/make-typed-env/issues"
   },
   "license": "MIT",
-  "author": "Author Name <author.name@mail.com>",
+  "author": "Seasoned <guga@seasoned.cc>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/author/library.git"
+    "url": "git+https://github.com/seasonedcc/make-typed-env.git"
   },
   "files": [
     "dist"
