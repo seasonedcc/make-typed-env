@@ -184,13 +184,17 @@ const getEnv = makeTypedEnv(serverSchema, camelKeys);
 export const env = () => getEnv(process.env);
 ```
 
-### Lazy singleton
+### Caching
 
-Defer validation until first access:
+`makeTypedEnv` is pure — it validates on every call with no hidden state. Cache the result yourself:
 
 ```ts
-const getEnv = makeTypedEnv(schema, camelKeys);
-export const env = () => getEnv(process.env);
+// Eager — validate once at module load
+export const env = getEnv(process.env);
+
+// Lazy — validate on first access, cache with ??=
+let _env: ReturnType<typeof getEnv>;
+export const env = () => (_env ??= getEnv(process.env));
 ```
 
 ### Vite client-side env
