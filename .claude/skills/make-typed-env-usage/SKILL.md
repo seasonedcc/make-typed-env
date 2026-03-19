@@ -55,10 +55,10 @@ const env = getEnv(process.env);
 
 ### Options
 
-| Option      | Type               | Default | Description                                                        |
-| ----------- | ------------------ | ------- | ------------------------------------------------------------------ |
-| `transform` | `(parsed: T) => R` | —       | Transform the parsed result. Return type is inferred.              |
-| `cache`     | `boolean`          | `true`  | Cache by args reference. Set to `false` to re-validate every call. |
+| Option      | Type               | Default | Description                                                              |
+| ----------- | ------------------ | ------- | ------------------------------------------------------------------------ |
+| `transform` | `(parsed: T) => R` | —       | Transform the parsed result. Return type is inferred.                    |
+| `cache`     | `boolean`          | `false` | Cache by args reference. Set to `true` to validate once per args object. |
 
 ## Input sources
 
@@ -117,19 +117,17 @@ const getEnv = makeTypedEnv(schema, {
 
 ## Caching
 
-Results are cached by reference by default. When called with the same args object, validation runs only once:
+By default, validation runs on every call. Enable caching with `cache: true` to validate only once per args reference:
 
 ```ts
+const getEnv = makeTypedEnv(schema, { cache: true });
+
 getEnv(process.env); // validates
 getEnv(process.env); // cached — same reference
 getEnv(import.meta.env); // validates — different reference
 ```
 
-Disable caching when needed:
-
-```ts
-const getEnv = makeTypedEnv(schema, { cache: false });
-```
+Caching can cause unexpected behavior with HMR during development since the cached result persists across module reloads. Prefer caching only in production or for server-side code that runs once at startup.
 
 ## Schema libraries
 

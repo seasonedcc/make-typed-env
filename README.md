@@ -14,7 +14,7 @@ Type-safe environment variables for TypeScript. Validate with any schema library
 
 🔄 Optional key transformation — pass [`camelKeys`](https://github.com/gustavoguichard/string-ts) or any function to reshape the output with full type inference.
 
-⚡ Built-in caching by reference — re-validates only when the args object changes.
+⚡ Optional caching by reference — opt in with `cache: true` to validate once per args object.
 
 📋 Replaces `.env.sample` files — your schema _is_ the documentation for required variables.
 
@@ -214,21 +214,17 @@ export const env = () => getEnv(process.env);
 
 ### Caching
 
-Results are cached by reference by default. When called with the same args object (e.g., `process.env`), validation runs only once:
+By default, validation runs on every call. Enable caching with `cache: true` to validate only once per args reference:
 
 ```ts
-const getEnv = makeTypedEnv(schema);
+const getEnv = makeTypedEnv(schema, { cache: true });
 
 getEnv(process.env); // validates
 getEnv(process.env); // cached — same reference
 getEnv(import.meta.env); // validates — different reference
 ```
 
-Disable caching with `cache: false` if you need to re-validate on every call:
-
-```ts
-const getEnv = makeTypedEnv(schema, { cache: false });
-```
+> **Note:** Caching can cause unexpected behavior with HMR (Hot Module Replacement) during development, since the cached result persists across module reloads. Prefer caching only in production or for server-side code that runs once at startup.
 
 ### Stripping prefixes
 
@@ -259,14 +255,14 @@ No more guessing which variable is missing.
 
 ### `makeTypedEnv(schema)`
 
-Returns a function `(args: Record<string, unknown>) => T` that validates `args` against the schema and returns the parsed result. Caches by default.
+Returns a function `(args: Record<string, unknown>) => T` that validates `args` against the schema and returns the parsed result.
 
 ### `makeTypedEnv(schema, options)`
 
-| Option      | Type               | Default | Description                                                        |
-| ----------- | ------------------ | ------- | ------------------------------------------------------------------ |
-| `transform` | `(parsed: T) => R` | —       | Transform the parsed result. Return type is inferred.              |
-| `cache`     | `boolean`          | `true`  | Cache by args reference. Set to `false` to re-validate every call. |
+| Option      | Type               | Default | Description                                                              |
+| ----------- | ------------------ | ------- | ------------------------------------------------------------------------ |
+| `transform` | `(parsed: T) => R` | —       | Transform the parsed result. Return type is inferred.                    |
+| `cache`     | `boolean`          | `false` | Cache by args reference. Set to `true` to validate once per args object. |
 
 ### Errors
 
