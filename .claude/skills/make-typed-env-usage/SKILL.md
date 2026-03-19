@@ -7,7 +7,7 @@ description: Generate code examples and usage patterns for the make-typed-env li
 
 ## What is make-typed-env?
 
-A minimal library for type-safe environment variables in TypeScript. It validates any `Record<string, unknown>` — `process.env`, `import.meta.env`, `Deno.env.toObject()`, `Bun.env` — against any [Standard Schema](https://standardschema.dev/) compatible schema and optionally transforms the output.
+A minimal library for type-safe environment variables in TypeScript. It validates any `Record<string, unknown>` — `process.env`, `import.meta.env`, `Deno.env.toObject()`, `Bun.env` — against any [Standard Schema](https://standardschema.dev/) compatible schema with optional key transformation and built-in caching.
 
 Zero runtime dependencies. Works with Zod, Valibot, ArkType, or any Standard Schema implementor.
 
@@ -15,7 +15,7 @@ Zero runtime dependencies. Works with Zod, Valibot, ArkType, or any Standard Sch
 
 ### `makeTypedEnv(schema)`
 
-Accept a Standard Schema and return a function that validates and returns the parsed result.
+Accept a Standard Schema and return a function that validates and returns the parsed result. Results are cached by args reference by default.
 
 ```ts
 import { makeTypedEnv } from "make-typed-env";
@@ -32,9 +32,9 @@ const env = getEnv(process.env);
 // type: { NODE_ENV: "development" | "production" | "test"; DATABASE_URL: string }
 ```
 
-### `makeTypedEnv(schema, transform)`
+### `makeTypedEnv(schema, options)`
 
-Accept a second argument to transform the parsed result. The return type is inferred from the transform function.
+Pass an options object to configure transform and caching:
 
 ```ts
 import { makeTypedEnv } from "make-typed-env";
@@ -46,12 +46,19 @@ const getEnv = makeTypedEnv(
     DATABASE_URL: z.string(),
     SESSION_SECRET: z.string().min(1),
   }),
-  camelKeys,
+  { transform: camelKeys },
 );
 
 const env = getEnv(process.env);
 // type: { databaseUrl: string; sessionSecret: string }
 ```
+
+### Options
+
+| Option      | Type               | Default | Description                                                        |
+| ----------- | ------------------ | ------- | ------------------------------------------------------------------ |
+| `transform` | `(parsed: T) => R` | —       | Transform the parsed result. Return type is inferred.              |
+| `cache`     | `boolean`          | `true`  | Cache by args reference. Set to `false` to re-validate every call. |
 
 ## Input sources
 
@@ -78,19 +85,21 @@ Combine with [`string-ts`](https://github.com/gustavoguichard/string-ts) for typ
 ```ts
 import { camelKeys, snakeKeys, kebabKeys, pascalKeys } from "string-ts";
 
-makeTypedEnv(schema, camelKeys); // SCREAMING_SNAKE → camelCase
-makeTypedEnv(schema, snakeKeys); // camelCase → snake_case
-makeTypedEnv(schema, kebabKeys); // camelCase → kebab-case
-makeTypedEnv(schema, pascalKeys); // snake_case → PascalCase
+makeTypedEnv(schema, { transform: camelKeys }); // SCREAMING_SNAKE → camelCase
+makeTypedEnv(schema, { transform: snakeKeys }); // camelCase → snake_case
+makeTypedEnv(schema, { transform: kebabKeys }); // camelCase → kebab-case
+makeTypedEnv(schema, { transform: pascalKeys }); // snake_case → PascalCase
 ```
 
 Custom transforms also work:
 
 ```ts
-const getEnv = makeTypedEnv(schema, (parsed) => ({
-  db: parsed.DATABASE_URL,
-  secret: parsed.SESSION_SECRET,
-}));
+const getEnv = makeTypedEnv(schema, {
+  transform: (parsed) => ({
+    db: parsed.DATABASE_URL,
+    secret: parsed.SESSION_SECRET,
+  }),
+});
 ```
 
 ### Stripping prefixes
@@ -100,8 +109,26 @@ Use `replaceKeys` from `string-ts` to strip prefixes like `VITE_` before camelCa
 ```ts
 import { camelKeys, replaceKeys } from "string-ts";
 
-const getEnv = makeTypedEnv(schema, (parsed) => camelKeys(replaceKeys(parsed, "VITE_", "")));
+const getEnv = makeTypedEnv(schema, {
+  transform: (parsed) => camelKeys(replaceKeys(parsed, "VITE_", "")),
+});
 // VITE_GOOGLE_MAPS_API_KEY → googleMapsApiKey
+```
+
+## Caching
+
+Results are cached by reference by default. When called with the same args object, validation runs only once:
+
+```ts
+getEnv(process.env); // validates
+getEnv(process.env); // cached — same reference
+getEnv(import.meta.env); // validates — different reference
+```
+
+Disable caching when needed:
+
+```ts
+const getEnv = makeTypedEnv(schema, { cache: false });
 ```
 
 ## Schema libraries
@@ -170,7 +197,7 @@ const publicSchema = z.object({
   VITE_SENTRY_DSN: z.string().optional(),
 });
 
-const getPublicEnv = makeTypedEnv(publicSchema, camelKeys);
+const getPublicEnv = makeTypedEnv(publicSchema, { transform: camelKeys });
 export { getPublicEnv, publicSchema };
 
 // env.server.ts
@@ -180,21 +207,8 @@ const serverSchema = publicSchema.extend({
   STRIPE_SECRET_KEY: z.string().min(1),
 });
 
-const getEnv = makeTypedEnv(serverSchema, camelKeys);
+const getEnv = makeTypedEnv(serverSchema, { transform: camelKeys });
 export const env = () => getEnv(process.env);
-```
-
-### Caching
-
-`makeTypedEnv` is pure — it validates on every call with no hidden state. Cache the result yourself:
-
-```ts
-// Eager — validate once at module load
-export const env = getEnv(process.env);
-
-// Lazy — validate on first access, cache with ??=
-let _env: ReturnType<typeof getEnv>;
-export const env = () => (_env ??= getEnv(process.env));
 ```
 
 ### Vite client-side env
@@ -207,7 +221,7 @@ const getPublicEnv = makeTypedEnv(
     VITE_GOOGLE_MAPS_API_KEY: z.string(),
     VITE_STRIPE_PUBLIC_KEY: z.string(),
   }),
-  camelKeys,
+  { transform: camelKeys },
 );
 
 const env = getPublicEnv(import.meta.env);
@@ -224,3 +238,4 @@ const env = getPublicEnv(import.meta.env);
 - Uses the [Standard Schema](https://standardschema.dev/) `~standard.validate()` interface
 - `@standard-schema/spec` is a types-only dev dependency — zero runtime cost
 - The transform function's return type flows through generics, so `camelKeys` produces `CamelKeys<T>` at the type level automatically
+- Caching uses reference identity (`===`) on the args object — stable references like `process.env` and `import.meta.env` are cached after first call

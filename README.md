@@ -14,9 +14,11 @@ Type-safe environment variables for TypeScript. Validate with any schema library
 
 🔄 Optional key transformation — pass [`camelKeys`](https://github.com/gustavoguichard/string-ts) or any function to reshape the output with full type inference.
 
+⚡ Built-in caching by reference — re-validates only when the args object changes.
+
 📋 Replaces `.env.sample` files — your schema _is_ the documentation for required variables.
 
-🪶 Zero runtime dependencies. ~10 lines of code.
+🪶 Zero runtime dependencies.
 
 ## Install
 
@@ -56,7 +58,7 @@ const getPublicEnv = makeTypedEnv(
     VITE_GOOGLE_MAPS_API_KEY: z.string(),
     VITE_STRIPE_PUBLIC_KEY: z.string(),
   }),
-  camelKeys,
+  { transform: camelKeys },
 );
 
 const env = getPublicEnv(import.meta.env);
@@ -78,7 +80,7 @@ const env = getEnv(Bun.env);
 
 ## Transforming keys
 
-The second argument accepts any function to transform the parsed object. Combine with [`string-ts`](https://github.com/gustavoguichard/string-ts) for type-safe key transformations:
+Pass a `transform` function in the options to reshape the parsed object. Combine with [`string-ts`](https://github.com/gustavoguichard/string-ts) for type-safe key transformations:
 
 ```bash
 npm install string-ts
@@ -95,7 +97,7 @@ const getEnv = makeTypedEnv(
     SESSION_SECRET: z.string().min(1),
     STRIPE_API_KEY: z.string().min(1),
   }),
-  camelKeys,
+  { transform: camelKeys },
 );
 
 const env = getEnv(process.env);
@@ -111,18 +113,20 @@ Any of the key transformation functions from `string-ts` work:
 ```ts
 import { snakeKeys, kebabKeys, pascalKeys } from "string-ts";
 
-makeTypedEnv(schema, snakeKeys);
-makeTypedEnv(schema, kebabKeys);
-makeTypedEnv(schema, pascalKeys);
+makeTypedEnv(schema, { transform: snakeKeys });
+makeTypedEnv(schema, { transform: kebabKeys });
+makeTypedEnv(schema, { transform: pascalKeys });
 ```
 
 Or write your own:
 
 ```ts
-const getEnv = makeTypedEnv(schema, (parsed) => ({
-  db: parsed.DATABASE_URL,
-  secret: parsed.SESSION_SECRET,
-}));
+const getEnv = makeTypedEnv(schema, {
+  transform: (parsed) => ({
+    db: parsed.DATABASE_URL,
+    secret: parsed.SESSION_SECRET,
+  }),
+});
 ```
 
 ## Schema libraries
@@ -187,7 +191,7 @@ const publicSchema = z.object({
   VITE_SENTRY_DSN: z.string().optional(),
 });
 
-const getPublicEnv = makeTypedEnv(publicSchema, camelKeys);
+const getPublicEnv = makeTypedEnv(publicSchema, { transform: camelKeys });
 export { getPublicEnv, publicSchema };
 ```
 
@@ -204,21 +208,26 @@ const serverSchema = publicSchema.extend({
   STRIPE_SECRET_KEY: z.string().min(1),
 });
 
-const getEnv = makeTypedEnv(serverSchema, camelKeys);
+const getEnv = makeTypedEnv(serverSchema, { transform: camelKeys });
 export const env = () => getEnv(process.env);
 ```
 
 ### Caching
 
-`makeTypedEnv` is a pure function — it validates on every call with no hidden state. Cache the result yourself with whichever pattern fits:
+Results are cached by reference by default. When called with the same args object (e.g., `process.env`), validation runs only once:
 
 ```ts
-// Eager — validate once at module load
-export const env = getEnv(process.env);
+const getEnv = makeTypedEnv(schema);
 
-// Lazy — validate on first access, cache with ??=
-let _env: ReturnType<typeof getEnv>;
-export const env = () => (_env ??= getEnv(process.env));
+getEnv(process.env); // validates
+getEnv(process.env); // cached — same reference
+getEnv(import.meta.env); // validates — different reference
+```
+
+Disable caching with `cache: false` if you need to re-validate on every call:
+
+```ts
+const getEnv = makeTypedEnv(schema, { cache: false });
 ```
 
 ### Stripping prefixes
@@ -228,7 +237,9 @@ Use `replaceKeys` from `string-ts` to strip prefixes like `VITE_` before camelCa
 ```ts
 import { camelKeys, replaceKeys } from "string-ts";
 
-const getEnv = makeTypedEnv(schema, (parsed) => camelKeys(replaceKeys(parsed, "VITE_", "")));
+const getEnv = makeTypedEnv(schema, {
+  transform: (parsed) => camelKeys(replaceKeys(parsed, "VITE_", "")),
+});
 // VITE_GOOGLE_MAPS_API_KEY → googleMapsApiKey
 ```
 
@@ -248,11 +259,14 @@ No more guessing which variable is missing.
 
 ### `makeTypedEnv(schema)`
 
-Returns a function `(args: Record<string, unknown>) => T` that validates `args` against the schema and returns the parsed result.
+Returns a function `(args: Record<string, unknown>) => T` that validates `args` against the schema and returns the parsed result. Caches by default.
 
-### `makeTypedEnv(schema, transform)`
+### `makeTypedEnv(schema, options)`
 
-Same as above, but pipes the parsed result through `transform` before returning. The return type is inferred from the transform function.
+| Option      | Type               | Default | Description                                                        |
+| ----------- | ------------------ | ------- | ------------------------------------------------------------------ |
+| `transform` | `(parsed: T) => R` | —       | Transform the parsed result. Return type is inferred.              |
+| `cache`     | `boolean`          | `true`  | Cache by args reference. Set to `false` to re-validate every call. |
 
 ### Errors
 
