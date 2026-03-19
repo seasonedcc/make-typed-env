@@ -67,11 +67,24 @@ describe("makeTypedEnv", () => {
 });
 
 describe("caching", () => {
-  test("caches by default — same args reference returns cached result", () => {
+  test("does not cache by default", () => {
     const schema = z.object({ FOO: z.string() });
     const spy = vi.spyOn(schema["~standard"], "validate");
 
     const getEnv = makeTypedEnv(schema);
+    const args = { FOO: "bar" };
+
+    getEnv(args);
+    getEnv(args);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  test("cache: true caches by args reference", () => {
+    const schema = z.object({ FOO: z.string() });
+    const spy = vi.spyOn(schema["~standard"], "validate");
+
+    const getEnv = makeTypedEnv(schema, { cache: true });
     const args = { FOO: "bar" };
 
     const first = getEnv(args);
@@ -81,29 +94,16 @@ describe("caching", () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  test("re-validates when called with a different args reference", () => {
+  test("cache: true re-validates with a different args reference", () => {
     const schema = z.object({ FOO: z.string() });
     const spy = vi.spyOn(schema["~standard"], "validate");
 
-    const getEnv = makeTypedEnv(schema);
+    const getEnv = makeTypedEnv(schema, { cache: true });
 
     const first = getEnv({ FOO: "a" });
     const second = getEnv({ FOO: "b" });
 
     expect(first).not.toBe(second);
-    expect(spy).toHaveBeenCalledTimes(2);
-  });
-
-  test("cache: false disables caching", () => {
-    const schema = z.object({ FOO: z.string() });
-    const spy = vi.spyOn(schema["~standard"], "validate");
-
-    const getEnv = makeTypedEnv(schema, { cache: false });
-    const args = { FOO: "bar" };
-
-    getEnv(args);
-    getEnv(args);
-
     expect(spy).toHaveBeenCalledTimes(2);
   });
 });

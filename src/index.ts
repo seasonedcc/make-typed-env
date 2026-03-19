@@ -14,7 +14,7 @@ function makeTypedEnv<T, R>(
   options: Options<T, R> & { transform: (parsed: T) => R },
 ): (args: Record<string, unknown>) => R;
 function makeTypedEnv<T, R>(schema: StandardSchemaV1<unknown, T>, options?: Options<T, R>) {
-  const { transform, cache = true } = options ?? {};
+  const { transform, cache = false } = options ?? {};
   let cachedArgs: Record<string, unknown> | undefined;
   let cachedResult: T | R | undefined;
 
