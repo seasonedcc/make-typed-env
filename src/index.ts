@@ -68,7 +68,7 @@ function makeTypedEnv<T, R>(schema: StandardSchemaV1<unknown, T>, options?: Opti
   let cachedResult: T | R | undefined;
 
   return (args: Record<string, unknown>) => {
-    if (cache && cachedArgs === args) return cachedResult!;
+    if (cache && cachedArgs === args) return cachedResult as R;
 
     const result = schema["~standard"].validate(args);
     if (result instanceof Promise) {
