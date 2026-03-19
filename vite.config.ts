@@ -8,7 +8,15 @@ export default defineConfig({
     dts: {
       tsgo: true,
     },
-    exports: false,
+    exports: {
+      customExports: {
+        ".": {
+          types: "./dist/index.d.mts",
+          default: "./dist/index.mjs",
+        },
+        "./package.json": "./package.json",
+      },
+    },
   },
   lint: {
     options: {
