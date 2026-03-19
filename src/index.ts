@@ -7,11 +7,11 @@ interface Options<T, R> {
 
 function makeTypedEnv<T>(
   schema: StandardSchemaV1<unknown, T>,
-  options?: Options<T, never>,
+  options?: { cache?: boolean },
 ): (args: Record<string, unknown>) => T;
 function makeTypedEnv<T, R>(
   schema: StandardSchemaV1<unknown, T>,
-  options: Options<T, R> & { transform: (parsed: T) => R },
+  options: { transform: (parsed: NoInfer<T>) => R; cache?: boolean },
 ): (args: Record<string, unknown>) => R;
 function makeTypedEnv<T, R>(schema: StandardSchemaV1<unknown, T>, options?: Options<T, R>) {
   const { transform, cache = false } = options ?? {};

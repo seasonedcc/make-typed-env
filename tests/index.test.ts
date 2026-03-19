@@ -1,5 +1,6 @@
 import { z } from "zod/mini";
 import { describe, expect, test, vi } from "vite-plus/test";
+import { camelKeys } from "string-ts";
 import { makeTypedEnv } from "../src";
 
 describe("makeTypedEnv", () => {
@@ -162,5 +163,17 @@ describe("type tests", () => {
     const getEnv = makeTypedEnv(schema);
 
     type _Args = Expect<Equal<Parameters<typeof getEnv>, [args: Record<string, unknown>]>>;
+  });
+
+  test("infers correct return type with generic transform like camelKeys", () => {
+    const schema = z.object({
+      FOO_BAR: z.string(),
+      BAZ_QUX: z.number(),
+    });
+
+    const getEnv = makeTypedEnv(schema, { transform: camelKeys });
+    type Env = ReturnType<typeof getEnv>;
+
+    type _Env = Expect<Equal<Env, { fooBar: string; bazQux: number }>>;
   });
 });
