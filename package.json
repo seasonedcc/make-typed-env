@@ -1,6 +1,6 @@
 {
   "name": "make-typed-env",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Type-safe environment variables for TypeScript. Schema-agnostic via Standard Schema, with optional key transformation.",
   "keywords": [
     "arktype",
