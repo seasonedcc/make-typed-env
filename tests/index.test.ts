@@ -1,5 +1,5 @@
 import { z } from "zod/mini";
-import { describe, expect, test } from "vite-plus/test";
+import { describe, expect, test, vi } from "vite-plus/test";
 import { makeTypedEnv } from "../src";
 
 describe("makeTypedEnv", () => {
@@ -17,7 +17,7 @@ describe("makeTypedEnv", () => {
     expect(env).toEqual({ NODE_ENV: "production", PORT: 3000 });
   });
 
-  test("applies transform function when provided", () => {
+  test("applies transform via options", () => {
     const schema = z.object({
       DATABASE_URL: z.string(),
       API_KEY: z.string(),
@@ -31,7 +31,7 @@ describe("makeTypedEnv", () => {
       return result;
     };
 
-    const getEnv = makeTypedEnv(schema, toLowerCase);
+    const getEnv = makeTypedEnv(schema, { transform: toLowerCase });
     const env = getEnv({ DATABASE_URL: "postgres://localhost", API_KEY: "secret" });
 
     type _Env = Expect<Equal<typeof env, Record<string, unknown>>>;
@@ -66,8 +66,50 @@ describe("makeTypedEnv", () => {
   });
 });
 
+describe("caching", () => {
+  test("caches by default — same args reference returns cached result", () => {
+    const schema = z.object({ FOO: z.string() });
+    const spy = vi.spyOn(schema["~standard"], "validate");
+
+    const getEnv = makeTypedEnv(schema);
+    const args = { FOO: "bar" };
+
+    const first = getEnv(args);
+    const second = getEnv(args);
+
+    expect(first).toBe(second);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  test("re-validates when called with a different args reference", () => {
+    const schema = z.object({ FOO: z.string() });
+    const spy = vi.spyOn(schema["~standard"], "validate");
+
+    const getEnv = makeTypedEnv(schema);
+
+    const first = getEnv({ FOO: "a" });
+    const second = getEnv({ FOO: "b" });
+
+    expect(first).not.toBe(second);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  test("cache: false disables caching", () => {
+    const schema = z.object({ FOO: z.string() });
+    const spy = vi.spyOn(schema["~standard"], "validate");
+
+    const getEnv = makeTypedEnv(schema, { cache: false });
+    const args = { FOO: "bar" };
+
+    getEnv(args);
+    getEnv(args);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("type tests", () => {
-  test("without transform returns the schema output type", () => {
+  test("without options returns the schema output type", () => {
     const schema = z.object({
       DATABASE_URL: z.string(),
       PORT: z.number(),
@@ -95,7 +137,7 @@ describe("type tests", () => {
       port: obj.PORT,
     });
 
-    const getEnv = makeTypedEnv(schema, transform);
+    const getEnv = makeTypedEnv(schema, { transform });
 
     type _GetEnv = Expect<
       Equal<typeof getEnv, (args: Record<string, unknown>) => { db: string; port: number }>
