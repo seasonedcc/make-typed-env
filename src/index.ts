@@ -1,5 +1,39 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+/**
+ * Error thrown when environment validation fails.
+ *
+ * Extends `Error` so existing `catch` blocks still work.
+ * Exposes the raw Standard Schema `issues` array for programmatic access,
+ * and a `toJSON()` method for structured logging systems.
+ */
+class EnvValidationError extends Error {
+  readonly issues: ReadonlyArray<StandardSchemaV1.Issue>;
+
+  constructor(issues: ReadonlyArray<StandardSchemaV1.Issue>) {
+    const count = issues.length;
+    const lines = issues.map((i) => {
+      const name = i.path?.length ? i.path.map(String).join(".") : undefined;
+      return name ? `  ✗ ${name}: ${i.message}` : `  ✗ ${i.message}`;
+    });
+    super(
+      `\n\n` +
+        `  Environment validation failed (${count} ${count === 1 ? "error" : "errors"}):\n\n` +
+        `${lines.join("\n")}\n`,
+    );
+    this.name = "EnvValidationError";
+    this.issues = issues;
+  }
+
+  toJSON() {
+    return {
+      name: this.name,
+      message: this.message,
+      issues: this.issues,
+    };
+  }
+}
+
 /** Options for {@link makeTypedEnv}. */
 interface Options<T, R> {
   /** Transform the parsed result before returning. The return type is inferred from this function. */
@@ -75,16 +109,7 @@ function makeTypedEnv<T, R>(schema: StandardSchemaV1<unknown, T>, options?: Opti
       throw new TypeError("Async schemas are not supported");
     }
     if (result.issues) {
-      const count = result.issues.length;
-      const lines = result.issues.map((i) => {
-        const name = i.path?.length ? i.path.map(String).join(".") : undefined;
-        return name ? `  ✗ ${name}: ${i.message}` : `  ✗ ${i.message}`;
-      });
-      throw new Error(
-        `\n\n` +
-          `  Environment validation failed (${count} ${count === 1 ? "error" : "errors"}):\n\n` +
-          `${lines.join("\n")}\n`,
-      );
+      throw new EnvValidationError(result.issues);
     }
     const value = transform ? transform(result.value) : result.value;
     if (cache) {
@@ -95,5 +120,5 @@ function makeTypedEnv<T, R>(schema: StandardSchemaV1<unknown, T>, options?: Opti
   };
 }
 
-export { makeTypedEnv };
+export { EnvValidationError, makeTypedEnv };
 export type { InferEnv, Options };
