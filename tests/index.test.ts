@@ -1,7 +1,7 @@
 import { z } from "zod/mini";
 import { describe, expect, test, vi } from "vite-plus/test";
 import { camelKeys } from "string-ts";
-import { makeTypedEnv } from "../src";
+import { EnvValidationError, makeTypedEnv } from "../src";
 
 describe("makeTypedEnv", () => {
   test("returns parsed values from a valid schema", () => {
@@ -40,7 +40,7 @@ describe("makeTypedEnv", () => {
     expect(env).toEqual({ database_url: "postgres://localhost", api_key: "secret" });
   });
 
-  test("throws on validation failure with descriptive message", () => {
+  test("throws EnvValidationError with variable names and error count", () => {
     const schema = z.object({
       DATABASE_URL: z.string(),
       NODE_ENV: z.enum(["development", "production", "test"]),
@@ -48,7 +48,64 @@ describe("makeTypedEnv", () => {
 
     const getEnv = makeTypedEnv(schema);
 
-    expect(() => getEnv({})).toThrow("Environment validation failed");
+    expect(() => getEnv({})).toThrow(EnvValidationError);
+    expect(() => getEnv({})).toThrow("Environment validation failed (2 errors)");
+    expect(() => getEnv({})).toThrow("✗ DATABASE_URL:");
+    expect(() => getEnv({})).toThrow("✗ NODE_ENV:");
+  });
+
+  test("EnvValidationError exposes issues array and correct name", () => {
+    const schema = z.object({ SECRET: z.string() });
+    const getEnv = makeTypedEnv(schema);
+
+    try {
+      getEnv({});
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      expect(e).toBeInstanceOf(EnvValidationError);
+      const err = e as EnvValidationError;
+      expect(err.name).toBe("EnvValidationError");
+      expect(err.issues).toHaveLength(1);
+      expect(err.issues[0].path).toEqual(["SECRET"]);
+    }
+  });
+
+  test("EnvValidationError.toJSON() returns structured data for loggers", () => {
+    const schema = z.object({ API_KEY: z.string(), DB_HOST: z.string() });
+    const getEnv = makeTypedEnv(schema);
+
+    try {
+      getEnv({});
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      const err = e as EnvValidationError;
+      const json = err.toJSON();
+      expect(json.name).toBe("EnvValidationError");
+      expect(json.message).toContain("Environment validation failed");
+      expect(json.issues).toHaveLength(2);
+    }
+  });
+
+  test("shows singular 'error' for single validation failure", () => {
+    const schema = z.object({
+      ONLY_VAR: z.string(),
+    });
+
+    const getEnv = makeTypedEnv(schema);
+
+    expect(() => getEnv({})).toThrow("(1 error)");
+  });
+
+  test("falls back to message-only when path is empty (root-level check)", () => {
+    const schema = z.object({ FOO: z.string() }).check(
+      z.check((ctx) => {
+        ctx.issues.push({ message: "Root-level failure", path: [], code: "custom", input: ctx });
+      }),
+    );
+
+    const getEnv = makeTypedEnv(schema);
+
+    expect(() => getEnv({ FOO: "valid" })).toThrow("✗ Root-level failure");
   });
 
   test("throws TypeError on async schema", () => {
