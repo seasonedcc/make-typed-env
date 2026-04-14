@@ -40,7 +40,7 @@ describe("makeTypedEnv", () => {
     expect(env).toEqual({ database_url: "postgres://localhost", api_key: "secret" });
   });
 
-  test("throws on validation failure with descriptive message", () => {
+  test("throws on validation failure with descriptive message including variable names", () => {
     const schema = z.object({
       DATABASE_URL: z.string(),
       NODE_ENV: z.enum(["development", "production", "test"]),
@@ -48,7 +48,31 @@ describe("makeTypedEnv", () => {
 
     const getEnv = makeTypedEnv(schema);
 
-    expect(() => getEnv({})).toThrow("Environment validation failed");
+    expect(() => getEnv({})).toThrow("Environment validation failed (2 errors)");
+    expect(() => getEnv({})).toThrow("✗ DATABASE_URL:");
+    expect(() => getEnv({})).toThrow("✗ NODE_ENV:");
+  });
+
+  test("shows singular 'error' for single validation failure", () => {
+    const schema = z.object({
+      ONLY_VAR: z.string(),
+    });
+
+    const getEnv = makeTypedEnv(schema);
+
+    expect(() => getEnv({})).toThrow("(1 error)");
+  });
+
+  test("falls back to message-only when path is empty (root-level check)", () => {
+    const schema = z.object({ FOO: z.string() }).check(
+      z.check((ctx) => {
+        ctx.issues.push({ message: "Root-level failure", path: [], code: "custom", input: ctx });
+      }),
+    );
+
+    const getEnv = makeTypedEnv(schema);
+
+    expect(() => getEnv({ FOO: "valid" })).toThrow("✗ Root-level failure");
   });
 
   test("throws TypeError on async schema", () => {

@@ -75,8 +75,15 @@ function makeTypedEnv<T, R>(schema: StandardSchemaV1<unknown, T>, options?: Opti
       throw new TypeError("Async schemas are not supported");
     }
     if (result.issues) {
+      const count = result.issues.length;
+      const lines = result.issues.map((i) => {
+        const name = i.path?.length ? i.path.map(String).join(".") : undefined;
+        return name ? `  ✗ ${name}: ${i.message}` : `  ✗ ${i.message}`;
+      });
       throw new Error(
-        `Environment validation failed:\n${result.issues.map((i) => `  - ${i.message}`).join("\n")}`,
+        `\n\n` +
+          `  Environment validation failed (${count} ${count === 1 ? "error" : "errors"}):\n\n` +
+          `${lines.join("\n")}\n`,
       );
     }
     const value = transform ? transform(result.value) : result.value;
